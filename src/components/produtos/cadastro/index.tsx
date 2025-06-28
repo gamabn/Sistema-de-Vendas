@@ -1,97 +1,280 @@
 import { Layout } from 'components'
-import React,{useState} from 'react'
-import Input from '../../Input/'
+import React, { useState } from 'react'
+import Input from '../../Input'
+import { useProdutoService } from '@/app/services'
+import { converterEmbigDecimal } from '@/app/util/money'
+import { Alert, AlertType } from '@/components/message'
+import * as yup from 'yup'
+import Link from 'next/link'
+
+const validationSchema = yup.object().shape({
+    sku: yup.string().trim().required("O campo SKU é obrigatório."),
+    nome: yup.string().trim().required("O campo Nome é obrigatório."),
+   preco: yup
+  .number()
+  .transform((value, originalValue) => {
+    if (typeof originalValue === 'string') {
+      const cleaned = originalValue
+        .replace(/[^\d,.-]/g, '') // remove R$, espaços e outros símbolos
+        .replace(/\./g, '')       // remove separador de milhar
+        .replace(',', '.');       // troca vírgula decimal por ponto
+
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? undefined : parsed;
+    }
+    return value;
+  })
+  .required("O campo Preço é obrigatório.")
+  .typeError("O Preço deve ser um valor numérico."),
+    descricao: yup.string().trim().required("O campo Descrição é obrigatório."),
+    quantidade: yup.number()
+        .transform((value, originalValue) => {
+            if (typeof originalValue === 'string' && originalValue.trim() === '') {
+                return undefined;
+            }
+            return value;
+        })
+        .required("O campo Quantidade é obrigatório.")
+        .typeError("A Quantidade deve ser um valor numérico.")
+})
+
+interface FormValidationProps {
+    nome: string;
+    sku: string;
+    preco: string; // Para validação, é uma string
+    descricao: string;
+    quantidade: string; // Para validação, é uma string
+    
+}
+interface FormErros {
+    sku?: string;
+    nome?: string;
+    preco?: string;
+    descricao?: string;
+    quantidade?: string;
+}
+
+interface FormProps {
+    nome: string;
+    sku: string;
+    preco: number;
+    descricao: string;
+    quantidade: number;
+    cadastro?: string;
+    id?: number;
+}
 
 export const CadastroProdutos: React.FC = () => {
-
+    const service = useProdutoService()
     const [nome, setNome] = useState('')
     const [preco, setPreco] = useState('')
     const [sku, setSku] = useState('')
     const [descricao, setDescricao] = useState('')
+    const [id, setId] = useState<number | undefined>(undefined)
+    const [quantidade, setQuantidade] = useState('')
+    const [cadastro, setCadastro] = useState<string>('')
+    const [mensagens, setMensagens] = useState<Alert[]>([])
+    const [erros, setErros] = useState<FormErros>({})
 
-    function handleForm(){
-       const valor = parseFloat(preco)
-    const produto: FormProps = {
-    nome: nome,
-    preco: valor,
-    sku:sku,
-     descricao: descricao
+    const setMessages = (texto: string, tipo: AlertType) => {
+        setMensagens([{ texto, tipo }])
     }
-    alert(preco)
-    console.log(produto)
+
+    async function handleForm() {
+        // Objeto para validação com os valores brutos (strings) dos inputs
+        const produtoParaValidar: FormValidationProps = {
+            nome,
+            preco, // Passa a string diretamente para validação
+            sku,
+            descricao,
+            quantidade, // Passa a string diretamente para validação
+        }
+        console.log("Produto a ser validado/enviado:", produtoParaValidar);
+
+        try {
+            await validationSchema.validate(produtoParaValidar, { abortEarly: false })
+            console.log("Validação Yup bem-sucedida.");
+
+            // Converte os tipos para o formato esperado pelo serviço APÓS a validação
+            const produtoParaSalvar: FormProps = {
+                id,
+                cadastro,
+                nome,
+                sku,
+                descricao,
+                preco: converterEmbigDecimal(preco),
+                quantidade: parseInt(quantidade) || 0
+            };
+
+            if (id) {
+                console.log("Modo: Atualizar produto (ID existe).");
+                await service.atualizar(produtoParaSalvar)
+                setMessages("Produto atualizado com sucesso", "success")
+                setErros({})
+            } else {
+                const result = await service.salvar(produtoParaSalvar)
+                setId(result.id)
+                setCadastro(result.cadastro)
+                setMessages("Produto cadastrado com sucesso", "success")
+                setErros({})
+                console.log("Modo: Salvar novo produto. Resultado:", result);
+            }
+        } catch (error) {
+            if (error instanceof yup.ValidationError) {
+                //const field = error.path;
+                //const message = error.message;
+                const yupErrors = error.inner.reduce((acc, err) => {
+                    if (err.path) {
+                        acc[err.path] = err.message;
+                    }
+                    return acc;
+                    }, {} as Record<string, string>);
+
+                setErros(yupErrors);
+                //const yupErrors = error.inner.map(err => ({
+                  ////  texto: err.message,
+                    //tipo: 'danger' as const,
+                   // field: err.path // err.path identifica o campo do erro
+               // }));
+               // setErros({
+                   // [field]: message
+               // });
+                //setMensagens(yupErrors);
+               // console.error("Erros de validação YUP:");
+            } else {
+                console.error("Erro inesperado ao salvar/atualizar:", error);
+                setMessages("Ocorreu um erro ao salvar/atualizar o produto.", "danger")
+                // Se o erro for do Axios, você pode tentar acessar error.response.data para mais detalhes
+            }
+        }
     }
-       
-interface FormProps{
-    nome: string;
-    sku: string;
-    preco: number;
-    descricao: string
-}
 
     return (
 
-        <Layout titulo="Produtos">
+        <Layout titulo="Produtos" mensagens={mensagens}>
+            {id &&(
+                <div className="columns">
+                <Input
+                    colunClass='is-half'
+                    label='Codigo *'
+                    value={id?.toString() || ''}
+                    id="inputId"
+                    disabled={true}
+                    
+                />
+                 <Input
+                    colunClass='is-half'
+                    label='Data Cadastro *'
+                    value={cadastro}
+                    id="inputDataCadastro"
+                    disabled={true}
+                   
 
-              <div className="columns">
-                  <Input 
-               
-                  label='Sku' 
-                  value={sku}
+                />
+            </div>
 
-                  Change={setSku}
-                  />
-                  
-              <div/>
-
-                    <div className='field is-half column'>
-                         <label className='label' htmlFor='inputPreco'>Preço: *</label>
-                         <div className='control'>
-                          <input className="input" type="number"
-                            id='inputPreco'
-                             value={preco}
-                            placeholder="Digite o SKU do produto"
-                            onChange={event=> setPreco(event.target.value)} />
-                        </div>
-                  </div>
-              </div>
+            )}
+             
+            
 
             <div className="columns">
-                 <div className='field column is-full'>
-                        <label className='label' htmlFor='inputNome'>Nome: *</label>
-                   <div className='control'>
-                       <input className="input" type="text"
-                             id='inputNome'
-                             value={nome}
-                            onChange={(text)=> setNome(text.target.value)}
-                             placeholder="Digite o SKU do produto" />
+                <Input
+                    colunClass='is-half'
+                    label='SKU *'
+                    value={sku}
+                    id="inputSku"
+                    placeholder='Digite seu produto'
+                    Change={setSku}
+                    error={erros.sku}
+                />
+                 <Input
+                    colunClass='is-half'
+                    label='Quantidade *'
+                    value={quantidade}
+                    id="inputQuantidade"
+                    placeholder='Digite seu produto'
+                    Change={setQuantidade}
+                    error={erros.quantidade}
+                />
+
+                </div>
+                
+
+                <div className="columns">
+                <Input
+                    colunClass='is-full'
+                    label='Nome *'
+                    value={nome}
+                    id="inputNome"
+                    placeholder='Digite seu produto'
+                    Change={setNome}
+                    error={erros.nome}
+                />
+               
+            </div>
+            <div className="columns">
+               
+               
+            </div>
+
+            <div className="columns">
+                <div className='field column is-full'>
+                    <label className='label' htmlFor='inputNome'>Preço: *</label>
+                    <div className='control'>
+                        <Input colunClass="is-full" 
+                          label='Preço *'
+                            id='inputPreco'
+                            value={preco}
+                           Change={setPreco}
+                            placeholder="Digite o preço do produto" 
+                            currency
+                            maxLength={16}
+                            error={erros.preco}
+                            />
                     </div>
                 </div>
             </div>
 
-                <div className="columns">
-                 <div className='field column is-full'>
-                     <label className='label' htmlFor='textArea'>Descriçao: *</label>
-                       <div className='textArea'>
-                             <textarea className="textarea"
-                               id='textArea'
-                              placeholder="Digite a descriçao detalhada do produto"
-                              onChange={(text=> setDescricao(text.target.value))}></textarea>
-                         </div>
-                     </div>
-                 </div>
+            <div className="columns">
+                <div className='field column is-full'>
+                    <label className='label' htmlFor='textArea'>Descriçao: *</label>
+                    <div className='textArea'>
+                        <textarea className="textarea"
+                            id='textArea'
+                            placeholder="Digite a descriçao detalhada do produto"
+                            onChange={(text => setDescricao(text.target.value))}/>
+                            {erros.descricao && 
+                             <p className="help is-danger">{erros.descricao}</p>}
+                            
+                    </div>
+                </div>
+            </div>
 
             <div className='field'>
-                <label className='label' htmlFor='button'>Descriçao: *</label>
                 <div className="field is-grouped">
                     <div className="control">
-                        <button className="button is-link" type='submit' onClick={handleForm}>Salvar</button>
+                        <button className="button is-link" type='submit' onClick={handleForm}>
+                            {id ? 'Atualizar' : 'Salvar'}
+                            </button>
                     </div>
-                    <div className="control">
+                    <Link href={"/product"} className="control">
                         <button className="button  is-info">Voltar</button>
-                    </div>
+                    </Link>
                 </div>
 
             </div>
         </Layout>
     )
 }
+  
+
+  //          lassName='field is-half column'>
+  //           className='label' htmlFor='inputPreco'>Preço: *</label>
+  //          lassName='control'>
+  //          nput className="input" type="number"
+  //            id='inputPreco'
+  //            value={preco}
+  //            placeholder="Digite o SKU do produto"
+  //            onChange={event => setPreco(event.target.va//lue)} />
+          //  </div>
+        //    </div>

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import {CadastroProdutos} from '../../produtos/cadastro/index'
 
 export const Menu: React.FC = () => {
     return (
@@ -7,12 +8,15 @@ export const Menu: React.FC = () => {
                 Minhas Vendas
             </p>
             <ul className="menu-list">
-                <MenuItem href="/" label="Home"  />
-                <MenuItem href="/" label="Cadastros"  />
-                <MenuItem href="/" label="Config"  />
-                <MenuItem href="/" label="Sair"  />
+                <MenuItem href="/" label="Home" />
+                <MenuItem href="./cadastros/produtos" label="Cadastros" />
+                <MenuItem href="/product" label="Product" />
+                <MenuItem href="/" label="Config" />
+                <MenuItem href="/" label="Sair" />
             </ul>
         </aside>
+       
+       
     )
 }
 
@@ -20,7 +24,6 @@ interface MenuItemProps {
     href: string;
     label: string;
 }
-
 const MenuItem: React.FC<MenuItemProps> = (props: MenuItemProps) => {
     return (
         <li>
@@ -29,6 +32,7 @@ const MenuItem: React.FC<MenuItemProps> = (props: MenuItemProps) => {
                     <span className="icon"></span> { props.label } 
                
             </Link>
+        
         </li>
     )
 }
