@@ -13,14 +13,25 @@ export const useProdutoService = () => {
     }
    const atualizar = async(produto: Produto):Promise<void> => {
         const url: string = `${resorceURL}/${produto.id}`;
-        await httpClient.put(url, produto);
-       
+        await httpClient.put(url, produto);    
     }
+
+    const listar = async(id: number):Promise<Produto> => {
+        const url: string = `${resorceURL}/${id}`;
+        const response: AxiosResponse<Produto> = await httpClient.get(url);
+        return response.data;
+    }
+
+    const excluir = async(id: number):Promise<void> => {
+        const url: string = `${resorceURL}/${id}`;
+        await httpClient.delete(url);
+    }
+
     return {
-        salvar, atualizar
-    
-    
+        salvar,
+         atualizar,
+          listar,
+          excluir   
     }
   
-
 }

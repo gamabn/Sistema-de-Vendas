@@ -1,11 +1,14 @@
 import { Layout } from 'components'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Input from '../../Input'
 import { useProdutoService } from '@/app/services'
-import { converterEmbigDecimal } from '@/app/util/money'
+import { converterEmbigDecimal, formatReal } from '@/app/util/money'
 import { Alert, AlertType } from '@/components/message'
 import * as yup from 'yup'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
+
+
 
 const validationSchema = yup.object().shape({
     sku: yup.string().trim().required("O campo SKU é obrigatório."),
@@ -65,6 +68,7 @@ interface FormProps {
 }
 
 export const CadastroProdutos: React.FC = () => {
+  
     const service = useProdutoService()
     const [nome, setNome] = useState('')
     const [preco, setPreco] = useState('')
@@ -75,6 +79,34 @@ export const CadastroProdutos: React.FC = () => {
     const [cadastro, setCadastro] = useState<string>('')
     const [mensagens, setMensagens] = useState<Alert[]>([])
     const [erros, setErros] = useState<FormErros>({})
+    const router = useRouter();
+    const { id: idUrl } = router.query;
+    //console.log("ID da URL:", idUrl);
+
+    useEffect(() =>{
+        if(!idUrl)return
+
+        console.log("ID da URL:", idUrl); // <- aqui está OK
+
+        const getProduto = async () => {
+            try {
+               const produtoEncontrado = await service.listar(Number(idUrl));
+               setId(produtoEncontrado.id);
+               setSku(produtoEncontrado.sku);
+               setNome(produtoEncontrado.nome);
+               setDescricao(produtoEncontrado.descricao);
+               // Passa o valor como string simples. O componente Input cuidará da formatação.
+               setPreco(produtoEncontrado.preco?.toString() || '');
+               setQuantidade(produtoEncontrado.quantidade?.toString() || '');
+               setCadastro(produtoEncontrado.cadastro || '');
+               console.log("Produto encontrado:", produtoEncontrado);
+            }catch (error) {
+                console.error("Erro ao buscar produto:", error);
+                setMensagens([{texto: "Ocorreu um erro ao buscar o produto.", tipo: "danger"}])
+            }
+        }
+        getProduto()
+    },[idUrl])
 
     const setMessages = (texto: string, tipo: AlertType) => {
         setMensagens([{ texto, tipo }])
@@ -174,8 +206,7 @@ export const CadastroProdutos: React.FC = () => {
             </div>
 
             )}
-             
-            
+      
 
             <div className="columns">
                 <Input
@@ -219,10 +250,9 @@ export const CadastroProdutos: React.FC = () => {
 
             <div className="columns">
                 <div className='field column is-full'>
-                    <label className='label' htmlFor='inputNome'>Preço: *</label>
                     <div className='control'>
                         <Input colunClass="is-full" 
-                          label='Preço *'
+                            label='Preço *'
                             id='inputPreco'
                             value={preco}
                            Change={setPreco}
@@ -241,6 +271,7 @@ export const CadastroProdutos: React.FC = () => {
                     <div className='textArea'>
                         <textarea className="textarea"
                             id='textArea'
+                            value={descricao}
                             placeholder="Digite a descriçao detalhada do produto"
                             onChange={(text => setDescricao(text.target.value))}/>
                             {erros.descricao && 
@@ -267,14 +298,3 @@ export const CadastroProdutos: React.FC = () => {
     )
 }
   
-
-  //          lassName='field is-half column'>
-  //           className='label' htmlFor='inputPreco'>Preço: *</label>
-  //          lassName='control'>
-  //          nput className="input" type="number"
-  //            id='inputPreco'
-  //            value={preco}
-  //            placeholder="Digite o SKU do produto"
-  //            onChange={event => setPreco(event.target.va//lue)} />
-          //  </div>
-        //    </div>
